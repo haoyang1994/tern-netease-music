@@ -1,7 +1,7 @@
 schema = 1
 id = "netease"
 name = "NetEase"
-version = "0.3.0"
+version = "0.3.1"
 description = "Now playing and playback controls for the NetEase Cloud Music desktop app. No login."
 icon = "wave"
 host = "src/host.luau"

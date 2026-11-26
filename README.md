@@ -117,8 +117,10 @@ check. Opening NetEase is disabled on macOS, including the legacy `open` queue c
   which `.uc!` paths the same-user NetEase process holds open in its
   `Caches/online_play_cache` directory. A single numeric track ID must agree across
   two samples. The helper reads only the paths from the OS. A read-only Node.js
-  helper then looks up that exact ID in NetEase's local SQLite catalogue and
-  returns the song, artist, album and duration.
+  helper looks up that exact ID in NetEase's local SQLite catalogue first.
+  If SQLite is unavailable or has no matching metadata, the helper checks the
+  local `playingList` JSON file in the same storage directory (up to 8 MiB)
+  for the exact track ID. Both lookups return the song, artist, album and duration.
 - **Cover art** — the cover helper uses the matching track's album art on the
   NetEase HTTPS image CDN. It can fall back to the public song detail endpoint by
   track ID. Both requests use known NetEase hosts and reject redirects. The
@@ -181,7 +183,7 @@ For a metadata check on macOS, stream two different songs and check that `track_
 and the displayed song and cover follow the transitions.
 
 Run `sh tests/macos.sh` from the checkout to test the cache-path
-selection, SQLite lookup and cover URL checks with temporary fixtures.
+selection, SQLite lookup, playing list fallback and cover URL checks with temporary fixtures.
 
 Background AX behavior references [CloudMusicFocus's CEF investigation](https://github.com/eruimisshy/CloudMusicFocus/blob/main/Sources/NeteaseController.swift)
 and [Background Music PR #853's direct menu action](https://github.com/kyleneideck/BackgroundMusic/pull/853).

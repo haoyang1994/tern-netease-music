@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import https from 'node:https';
 import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -40,6 +40,42 @@ test('SQLite metadata requires an exact active ID and leaves the database untouc
     assert.deepEqual(readFileSync(file), before);
     writeFileSync(file + '-wal', '');
     assert.equal(readTrack(file, '123'), null);
+});
+
+test('playingList supplies metadata for the exact nested track ID after a SQLite miss', context => {
+    const root = mkdtempSync(join(tmpdir(), 'tern-netease-tracks-'));
+    context.after(() => rmSync(root, { recursive: true }));
+    const database = join(root, 'sqlite_storage.sqlite3');
+    const db = new DatabaseSync(database);
+    db.exec('CREATE TABLE dbTrack(id TEXT PRIMARY KEY, jsonStr TEXT);');
+    db.prepare('INSERT INTO dbTrack VALUES (?, ?)').run('456', JSON.stringify({ id: 456, name: 'SQLite title' }));
+    db.close();
+
+    const directory = join(root, 'file_storage', 'webdata', 'file');
+    mkdirSync(directory, { recursive: true });
+    const playlist = join(directory, 'playingList');
+    writeFileSync(playlist, JSON.stringify({ list: [
+        { id: 123, track: { id: 456, name: 'Wrong track', album: { picUrl: 'https://evil.example/cover.jpg' } } },
+        { id: 789, track: {
+            id: 123, name: 'Right\ntrack', artists: [{ name: 'Artist' }],
+            album: { name: 'Album', picUrl: 'http://p4.music.126.net/example==/cover.jpg?discard=1' },
+            duration: 4000,
+        } },
+    ] }));
+    const expected = {
+        id: '123', title: 'Right track', artist: 'Artist', album: 'Album', duration: 4000,
+        art_url: 'https://p4.music.126.net/example==/cover.jpg?param=512y512',
+    };
+    assert.deepEqual(readTrack(database, '123'), expected);
+    assert.equal(readTrack(database, '456')?.title, 'SQLite title');
+    assert.equal(readTrack(database, '789'), null);
+    const missingDatabase = join(root, 'missing.sqlite3');
+    assert.deepEqual(readTrack(missingDatabase, '123'), expected);
+    assert.equal(readTrack(missingDatabase, '456')?.art_url, null);
+    appendFileSync(playlist, ' '.repeat(8 * 1024 * 1024));
+    assert.equal(readTrack(database, '123'), null);
+    writeFileSync(playlist, '{');
+    assert.equal(readTrack(database, '123'), null);
 });
 
 test('Cover URLs require the NetEase CDN host and a safe path', () => {
